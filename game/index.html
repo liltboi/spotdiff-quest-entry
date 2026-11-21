@@ -1,0 +1,22 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 32 32%22%3E%3Crect width=%2232%22 height=%2232%22 rx=%228%22 fill=%22%23f0b455%22/%3E%3Ccircle cx=%2214%22 cy=%2214%22 r=%227%22 fill=%22none%22 stroke=%22%23141a2b%22 stroke-width=%223%22/%3E%3Cpath d=%22M19 19l6 6%22 stroke=%22%23141a2b%22 stroke-width=%223%22 stroke-linecap=%22round%22/%3E%3C/svg%3E">
+<title>Spotdiff Quest — a hand-drawn spot the difference game</title>
+<style>
+  :root { color-scheme: dark; }
+  html, body { margin: 0; height: 100%; overflow: hidden; background: #070b16; }
+  body { display: grid; place-items: center; }
+  #stage { position: fixed; inset: 0; width: 100%; height: 100%; display: block; touch-action: none; cursor: crosshair; }
+  #status { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+</style>
+</head>
+<body>
+<!-- Everything is painted on this canvas: scenes, markers, timer, hints and win screen. -->
+<canvas id="stage" aria-label="Spotdiff Quest, a spot the difference game. Two hand-drawn pictures sit side by side; click each difference you find, in either picture."></canvas>
+<p id="status" role="status" aria-live="polite"></p>
+<script type="module" src="./js/main.js"></script>
+</body>
+</html>

@@ -1,0 +1,6 @@
+[
+  { "name": "01-cover.png", "query": "?shot=cover&seed=7" },
+  { "name": "02-harbor.png", "query": "?shot=harbor&seed=7" },
+  { "name": "03-orbit.png", "query": "?shot=orbit&seed=11" },
+  { "name": "04-coral-hint.png", "query": "?shot=hint&seed=23" }
+]
