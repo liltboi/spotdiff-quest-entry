@@ -17,8 +17,11 @@ export const TITLE = 'SPOTDIFF QUEST';
 /** Seconds on the clock, differences to find, and hints per level. Difficulty climbs left to right. */
 export const LEVELS = [
   { scene: 'harbor', name: 'Harbor Afterglow', note: 'Five small changes in the night harbor', find: 5, seconds: 105, hints: 3, hitRadius: 46 },
-  { scene: 'reef', name: 'Coral Cove', note: 'Six changes beneath the lantern-lit reef', find: 6, seconds: 90, hints: 3, hitRadius: 40 },
-  { scene: 'orbit', name: 'Orbit Outpost', note: 'Seven changes aboard the last outpost', find: 7, seconds: 75, hints: 2, hitRadius: 34 },
+  { scene: 'reef', name: 'Coral Cove', note: 'Six changes beneath the lantern-lit reef', find: 6, seconds: 95, hints: 3, hitRadius: 42 },
+  { scene: 'market', name: 'Night Market', note: 'Seven changes among lanterns and steam', find: 7, seconds: 95, hints: 3, hitRadius: 40 },
+  { scene: 'orbit', name: 'Orbit Outpost', note: 'Seven changes aboard the last outpost', find: 7, seconds: 80, hints: 2, hitRadius: 36 },
+  { scene: 'cabin', name: 'Alpine Cabin', note: 'Eight changes under the northern lights', find: 8, seconds: 90, hints: 2, hitRadius: 36 },
+  { scene: 'workshop', name: 'Clockwork Workshop', note: 'Eight changes in the tinkerer’s shop', find: 8, seconds: 85, hints: 2, hitRadius: 34 },
 ];
 
 export const SCORE = {
@@ -27,7 +30,13 @@ export const SCORE = {
   hintCost: 40,
   perSecondLeft: 5,
   levelClear: 250,
+  comboWindow: 5,
+  comboBonus: 40,
+  comboMax: 4,
 };
+
+/** Score ratios for the end-of-run star rating. */
+export const STARS = { two: 0.62, three: 0.82 };
 
 /** Milliseconds. */
 export const TIMING = {
@@ -36,6 +45,9 @@ export const TIMING = {
   hintPulse: 2.6,
   levelBanner: 1700,
   clearScreen: 2600,
+  transition: 0.62,
+  comboHold: 2.4,
+  popupLife: 1.35,
 };
 
 export const COLORS = {

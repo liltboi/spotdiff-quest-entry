@@ -10,23 +10,29 @@
 //
 // Keep it boring: copying, a few size guards, and one call into vendor/makefun-game.ts.
 
-import { cpSync, existsSync, mkdirSync, writeFileSync } from 'node:fs';
-import { join } from 'node:path';
+import { cpSync, existsSync, mkdirSync, rmSync, writeFileSync } from 'node:fs';
+import { join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { buildDossier } from './vendor/makefun-game.ts';
 
 const repoRoot = fileURLToPath(new URL('.', import.meta.url));
 const outputRoot = process.env.MAKEFUN_OUTPUT_DIR ?? '/output';
+const removableTargets = resolve(outputRoot) !== resolve(repoRoot);
 
 mkdirSync(outputRoot, { recursive: true });
 
 // The playable game: copied whole, since the browser asks for index.html and its modules.
-cpSync(join(repoRoot, 'game'), join(outputRoot, 'game'), { recursive: true });
+// The targets are cleared first so repeated runs (and renamed level files) never leave a
+// stale screenshot or module behind in an existing output directory.
+const gameTarget = join(outputRoot, 'game');
+if (removableTargets) rmSync(gameTarget, { recursive: true, force: true });
+cpSync(join(repoRoot, 'game'), gameTarget, { recursive: true });
 
 // The photographs of the game the judge sees first. Optional only so a local run cannot fail on
 // a checkout where they have not been taken yet.
 const screenshotSource = join(repoRoot, 'screenshots');
 const screenshotTarget = join(outputRoot, 'screenshots');
+if (removableTargets) rmSync(screenshotTarget, { recursive: true, force: true });
 mkdirSync(screenshotTarget, { recursive: true });
 if (existsSync(screenshotSource)) {
   cpSync(screenshotSource, screenshotTarget, { recursive: true });

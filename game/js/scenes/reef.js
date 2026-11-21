@@ -214,6 +214,23 @@ export function buildReef(random) {
     { prop: 'ray', op: 'show', tier: 1, r: 1.3 },
   ];
 
+  // Bubbles drift up through the reef, the same on both copies.
+  const ambient = (ctx, time) => {
+    for (let index = 0; index < 18; index += 1) {
+      const speed = 9 + hash01(index * 3.7) * 20;
+      const x = 18 + hash01(index * 5.1) * (W - 36) + Math.sin(time * 0.8 + index) * 5;
+      const y = H - ((time * speed + hash01(index * 7.3) * 420) % 430);
+      if (y < 24) continue;
+      const r = 1 + hash01(index * 2.9) * 2.2;
+      ctx.strokeStyle = 'rgba(220, 255, 250, 0.42)';
+      ctx.lineWidth = 0.9;
+      ctx.beginPath();
+      ctx.arc(x, y, r, 0, TAU);
+      ctx.stroke();
+      dot(ctx, x - r * 0.35, y - r * 0.35, r * 0.28, 'rgba(255, 255, 255, 0.7)');
+    }
+  };
+
   return {
     key: 'reef',
     name: 'Coral Cove',
@@ -221,6 +238,7 @@ export function buildReef(random) {
     props,
     pool,
     backdrop,
+    ambient,
     drawProp: drawReefProp,
   };
 }

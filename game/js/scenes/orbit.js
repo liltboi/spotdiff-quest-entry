@@ -1,7 +1,7 @@
 // Level three: "Orbit Outpost". Deep space, a banded ringed planet, and a little survey station
 // with solar wings, a botany dome and one astronaut on a tether. Painted entirely with canvas.
 
-import { TAU, dot, ellipse, gradient, hash01, radial, roundRect, starPath } from '../draw.js';
+import { TAU, dot, ellipse, gradient, hash01, radial, roundRect, sparkle, starPath } from '../draw.js';
 
 const W = 560;
 const H = 440;
@@ -149,6 +149,24 @@ export function buildOrbit(random) {
     { prop: 'asteroid', op: 'show', tier: 1, r: 1.1 },
   ];
 
+  // Stars breathe and the station's beacon flashes on the shared clock.
+  const ambient = (ctx, time) => {
+    for (let index = 0; index < stars.length; index += 7) {
+      const star = stars[index];
+      const twinkle = 0.5 + 0.5 * Math.sin(time * 2 + index * 1.3);
+      sparkle(ctx, star.x, star.y, 2 + star.r * 2.2 * twinkle, '#f0f5ff', 0.35 * twinkle);
+    }
+    const beacon = props.find((prop) => prop.id === 'beacon');
+    if (beacon) {
+      const pulse = Math.max(0, Math.sin(time * 2.6));
+      ctx.fillStyle = `rgba(255, 92, 108, ${0.18 * pulse})`;
+      ctx.beginPath();
+      ctx.arc(beacon.x, beacon.y, 13, 0, TAU);
+      ctx.fill();
+      dot(ctx, beacon.x, beacon.y, 2.6, `rgba(255, 130, 140, ${0.55 + pulse * 0.45})`);
+    }
+  };
+
   return {
     key: 'orbit',
     name: 'Orbit Outpost',
@@ -156,6 +174,7 @@ export function buildOrbit(random) {
     props,
     pool,
     backdrop,
+    ambient,
     drawProp: drawOrbitProp,
   };
 }

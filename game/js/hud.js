@@ -1,16 +1,17 @@
 // All chrome around the pictures: the header, the two framed canvases, the remaining counter,
 // the timer, hint and sound buttons, and the clear/timeout/victory cards. Painting only.
 
-import { COLORS, FONT, PANELS, SCENE, TITLE } from './config.js';
+import { COLORS, FONT, PANELS, SCENE, TITLE, TIMING } from './config.js';
 import {
   TAU, clamp, dot, ellipse, gradient, hash01, radial, roundRect, sparkle, starPath, withAlpha,
 } from './draw.js';
 import { paintPicture } from './scene-render.js';
 
 const HIT = {
-  hint: { x: 950, y: 596, w: 158, h: 48 },
-  sound: { x: 1126, y: 600, w: 42, h: 42 },
-  retry: { x: 1178, y: 600, w: 42, h: 42 },
+  hint: { x: 936, y: 596, w: 152, h: 48 },
+  pause: { x: 1094, y: 600, w: 42, h: 42 },
+  sound: { x: 1146, y: 600, w: 42, h: 42 },
+  retry: { x: 1198, y: 600, w: 42, h: 42 },
 };
 
 const CARD_BUTTON = { x: 540, y: 506, w: 200, h: 50 };
@@ -24,10 +25,12 @@ export function render(ctx, state) {
   if (state.screen === 'clear') drawClear(ctx, state);
   if (state.screen === 'timeout') drawTimeout(ctx, state);
   if (state.screen === 'victory') drawVictory(ctx, state);
+  if (state.paused) drawPause(ctx, state);
 }
 
 export function hitAction(state, x, y) {
   if (inside(HIT.hint, x, y)) return 'hint';
+  if (inside(HIT.pause, x, y)) return 'pause';
   if (inside(HIT.sound, x, y)) return 'sound';
   if (inside(HIT.retry, x, y)) return 'retry';
   if (state.screen === 'clear' && inside(CARD_BUTTON, x, y)) return 'next';
@@ -285,7 +288,113 @@ function drawPictures(ctx, state) {
     ctx.lineWidth = 1;
     roundRect(ctx, x + 0.5, y + 0.5, SCENE.width - 1, SCENE.height - 1, 10);
     ctx.stroke();
+
+    // A short veil and a sweeping light line dress each level change.
+    drawTransition(ctx, state, x, y);
+
+    // Floating score and combo text from this picture's finds.
+    for (const popup of state.popups) {
+      if (popup.panel === index) drawPopup(ctx, popup, state.time, x, y);
+    }
   }
+
+  drawKeyboardCursor(ctx, state, shakeX, shakeY);
+}
+
+function drawTransition(ctx, state, x, y) {
+  const age = state.time - (state.transitionAt ?? -99);
+  if (age < 0 || age >= TIMING.transition) return;
+  const fade = 1 - age / TIMING.transition;
+  ctx.save();
+  roundRect(ctx, x, y, SCENE.width, SCENE.height, 10);
+  ctx.clip();
+  ctx.fillStyle = `rgba(5, 8, 16, ${fade * 0.9})`;
+  ctx.fillRect(x, y, SCENE.width, SCENE.height);
+  const sweep = y + SCENE.height * (1 - fade);
+  ctx.fillStyle = `rgba(255, 207, 107, ${fade * 0.6})`;
+  ctx.fillRect(x, sweep, SCENE.width, 2);
+  ctx.fillStyle = `rgba(123, 220, 255, ${fade * 0.22})`;
+  ctx.fillRect(x, sweep - 10, SCENE.width, 10);
+  ctx.restore();
+}
+
+function drawPopup(ctx, popup, time, ox, oy) {
+  const age = Math.max(0, time - popup.at);
+  const fade = clamp(1 - age / TIMING.popupLife, 0, 1);
+  if (fade <= 0) return;
+  const rise = 8 + age * 24;
+  ctx.save();
+  roundRect(ctx, ox, oy, SCENE.width, SCENE.height, 10);
+  ctx.clip();
+  ctx.globalAlpha = Math.min(1, fade * 1.6);
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  const x = ox + popup.x;
+  const y = oy + popup.y - rise;
+  ctx.font = `700 16px ${FONT.ui}`;
+  ctx.lineWidth = 3.4;
+  ctx.strokeStyle = 'rgba(4, 10, 16, 0.75)';
+  ctx.strokeText(popup.text, x, y);
+  ctx.fillStyle = popup.color;
+  ctx.fillText(popup.text, x, y);
+  if (popup.sub) {
+    ctx.font = `700 10px ${FONT.ui}`;
+    ctx.strokeText(popup.sub, x, y - 15);
+    ctx.fillStyle = '#ffe7a8';
+    ctx.fillText(popup.sub, x, y - 15);
+  }
+  ctx.textAlign = 'left';
+  ctx.textBaseline = 'alphabetic';
+  ctx.restore();
+}
+
+function drawKeyboardCursor(ctx, state, shakeX, shakeY) {
+  const cursor = state.keyboard;
+  if (!cursor.active || state.screen !== 'play') return;
+  const panel = PANELS[cursor.panel];
+  const x = panel.x + shakeX + cursor.x;
+  const y = panel.y + shakeY + cursor.y;
+  const pulse = 0.5 + 0.5 * Math.sin(state.time * 5.2);
+  ctx.save();
+  ctx.translate(x, y);
+
+  // A soft target ring with four ticks.
+  ctx.fillStyle = 'rgba(255, 207, 107, 0.08)';
+  ctx.beginPath();
+  ctx.arc(0, 0, 22, 0, TAU);
+  ctx.fill();
+  ctx.strokeStyle = `rgba(255, 207, 107, ${0.55 + pulse * 0.35})`;
+  ctx.lineWidth = 2;
+  ctx.setLineDash([4, 5]);
+  ctx.lineDashOffset = -state.time * 12;
+  ctx.beginPath();
+  ctx.arc(0, 0, 19, 0, TAU);
+  ctx.stroke();
+  ctx.setLineDash([]);
+  ctx.strokeStyle = 'rgba(255, 240, 200, 0.9)';
+  ctx.lineWidth = 1.6;
+  for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+    ctx.beginPath();
+    ctx.moveTo(dx * 24, dy * 24);
+    ctx.lineTo(dx * 30, dy * 30);
+    ctx.stroke();
+  }
+  dot(ctx, 0, 0, 2.2, '#ffe7a8');
+  // Picture tag.
+  ctx.fillStyle = 'rgba(20, 16, 8, 0.78)';
+  roundRect(ctx, -9, -38, 18, 14, 4);
+  ctx.fill();
+  ctx.strokeStyle = 'rgba(255, 207, 107, 0.6)';
+  ctx.lineWidth = 1;
+  ctx.stroke();
+  ctx.fillStyle = '#ffe7a8';
+  ctx.font = `700 9px ${FONT.ui}`;
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText(cursor.panel === 0 ? 'A' : 'B', 0, -30.5);
+  ctx.textAlign = 'left';
+  ctx.textBaseline = 'alphabetic';
+  ctx.restore();
 }
 
 function drawFooter(ctx, state) {
@@ -313,7 +422,7 @@ function drawFooter(ctx, state) {
   ctx.fillText(`${state.scoreFinds} found · ${state.wrongCount} missed clicks`, 66, 666);
 
   // Remaining counter.
-  const counterX = 430;
+  const counterX = 316;
   ctx.fillStyle = COLORS.dim;
   ctx.font = `700 9px ${FONT.ui}`;
   ctx.textAlign = 'left';
@@ -321,52 +430,196 @@ function drawFooter(ctx, state) {
   const counterText = remaining === 0 ? 'ALL FOUND' : `FIND ${remaining} MORE`;
   const pulse = state.findPulse > 0 ? 1 + state.findPulse * 0.08 : 1;
   ctx.save();
-  ctx.translate(counterX, 646);
+  ctx.translate(counterX, 644);
   ctx.scale(pulse, pulse);
   ctx.fillStyle = remaining === 0 ? COLORS.found : COLORS.gold;
-  ctx.font = `700 30px ${FONT.display}`;
+  ctx.font = `700 27px ${FONT.display}`;
   ctx.fillText(counterText, 0, 0);
   ctx.restore();
 
   // One pip per difference, filled from the left as finds come in.
   for (let index = 0; index < state.differences.length; index += 1) {
     const done = index < found;
-    const x = counterX + 9 + index * 24;
+    const x = counterX + 7 + index * 22;
     if (done) {
       ctx.fillStyle = COLORS.found;
       ctx.beginPath();
-      ctx.arc(x, 662, 7.5, 0, TAU);
+      ctx.arc(x, 662, 6.8, 0, TAU);
       ctx.fill();
       ctx.strokeStyle = '#062018';
-      ctx.lineWidth = 1.7;
+      ctx.lineWidth = 1.6;
       ctx.beginPath();
-      ctx.moveTo(x - 3.2, 662);
-      ctx.lineTo(x - 0.8, 664.6);
-      ctx.lineTo(x + 3.4, 659.4);
+      ctx.moveTo(x - 2.8, 662);
+      ctx.lineTo(x - 0.6, 664.4);
+      ctx.lineTo(x + 3.1, 659.6);
       ctx.stroke();
     } else {
       ctx.strokeStyle = 'rgba(255, 207, 107, 0.45)';
-      ctx.lineWidth = 1.6;
+      ctx.lineWidth = 1.5;
       ctx.beginPath();
-      ctx.arc(x, 662, 7, 0, TAU);
+      ctx.arc(x, 662, 6.3, 0, TAU);
       ctx.stroke();
-      dot(ctx, x, 662, 2, 'rgba(255, 207, 107, 0.3)');
+      dot(ctx, x, 662, 1.8, 'rgba(255, 207, 107, 0.3)');
     }
   }
+
+  // Combo badge while a streak is live; the personal best otherwise.
+  drawComboBadge(ctx, state);
+
+  // Progress through the whole run.
+  drawRunProgress(ctx, state);
 
   // Instructions.
   ctx.fillStyle = 'rgba(160, 178, 208, 0.75)';
   ctx.font = `500 12px ${FONT.ui}`;
   ctx.textAlign = 'center';
-  ctx.fillText('Click a difference in either picture  ·  wrong clicks cost 3 seconds  ·  H for a hint', 640, 689);
+  const help = state.keyboard.active
+    ? 'Arrows move the cursor  ·  Enter finds  ·  Tab switches picture  ·  P pauses'
+    : 'Click a difference in either picture  ·  wrong clicks cost 3 seconds  ·  H hint  ·  P pause';
+  ctx.fillText(help, 640, 689);
+  ctx.textAlign = 'left';
 
   // Hint button.
   drawHintButton(ctx, state);
 
-  // Sound and retry chips.
+  // Pause, sound and retry chips.
+  drawRoundButton(ctx, HIT.pause, state.paused ? 'play' : 'pause');
   drawRoundButton(ctx, HIT.sound, state.soundOn ? 'sound' : 'muted');
   drawRoundButton(ctx, HIT.retry, 'retry');
   ctx.textAlign = 'left';
+}
+
+function drawComboBadge(ctx, state) {
+  const x = 596;
+  const y = 606;
+  const w = 132;
+  const h = 46;
+  const active = state.comboUntil > state.time && state.streak >= 2;
+  ctx.save();
+  if (active) {
+    const age = 1 - Math.min(1, (state.comboUntil - state.time) / TIMING.comboHold);
+    const pop = 1 + (1 - Math.min(1, age * 6)) * 0.12;
+    ctx.translate(x + w / 2, y + h / 2);
+    ctx.scale(pop, pop);
+    ctx.translate(-(x + w / 2), -(y + h / 2));
+    ctx.fillStyle = gradient(ctx, x, y, x, y + h, [
+      [0, 'rgba(255, 207, 107, 0.24)'],
+      [1, 'rgba(255, 155, 61, 0.1)'],
+    ]);
+    roundRect(ctx, x, y, w, h, 10);
+    ctx.fill();
+    ctx.strokeStyle = withAlpha(COLORS.gold, 0.7);
+    ctx.lineWidth = 1.2;
+    ctx.stroke();
+    ctx.fillStyle = COLORS.gold;
+    ctx.font = `700 10px ${FONT.ui}`;
+    ctx.textAlign = 'left';
+    ctx.fillText('COMBO', x + 12, y + 16);
+    ctx.fillStyle = COLORS.ink;
+    ctx.font = `700 20px ${FONT.display}`;
+    ctx.fillText(`×${state.streak}`, x + 12, y + 37);
+    ctx.textAlign = 'right';
+    ctx.fillStyle = '#ffe7a8';
+    ctx.font = `700 16px ${FONT.ui}`;
+    ctx.fillText(`+${state.comboBonus}`, x + w - 12, y + 31);
+    ctx.fillStyle = 'rgba(255, 235, 190, 0.6)';
+    ctx.font = `600 9px ${FONT.ui}`;
+    ctx.fillText('FAST FINDS', x + w - 12, y + 15);
+  } else {
+    ctx.textAlign = 'left';
+    ctx.fillStyle = COLORS.dim;
+    ctx.font = `700 9px ${FONT.ui}`;
+    ctx.fillText('PERSONAL BEST', x, y + 14);
+    ctx.fillStyle = state.best.score > 0 ? '#d9e4ff' : 'rgba(140, 158, 190, 0.5)';
+    ctx.font = `700 19px ${FONT.ui}`;
+    ctx.fillText(state.best.score > 0 ? state.best.score.toLocaleString('en-US') : '—', x, y + 38);
+    if (state.best.stars > 0) {
+      for (let index = 0; index < state.best.stars; index += 1) {
+        drawStar(ctx, x + 92 + index * 16, y + 31, 6.5, COLORS.gold, COLORS.goldDeep);
+      }
+    }
+  }
+  ctx.restore();
+}
+
+function drawRunProgress(ctx, state) {
+  const x = 730;
+  const w = 182;
+  let found = 0;
+  let total = 0;
+  let currentFound = 0;
+  for (let index = 0; index < state.levels.length; index += 1) {
+    const level = state.levels[index];
+    total += level.find;
+    if (index < state.levelIndex) found += level.find;
+    if (index === state.levelIndex) {
+      currentFound = state.differences.filter((difference) => difference.found).length;
+      found += currentFound;
+    }
+  }
+  const percent = total > 0 ? Math.round((found / total) * 100) : 0;
+
+  ctx.textAlign = 'left';
+  ctx.fillStyle = COLORS.dim;
+  ctx.font = `700 9px ${FONT.ui}`;
+  ctx.fillText('QUEST PROGRESS', x, 618);
+  ctx.textAlign = 'right';
+  ctx.fillStyle = COLORS.gold;
+  ctx.font = `700 10px ${FONT.ui}`;
+  ctx.fillText(`${percent}%`, x + w, 618);
+
+  // One segment per picture.
+  const gap = 3;
+  const count = state.levels.length;
+  const segment = (w - gap * (count - 1)) / count;
+  let tipX = x;
+  for (let index = 0; index < count; index += 1) {
+    const sx = x + index * (segment + gap);
+    const levelFound = index < state.levelIndex
+      ? state.levels[index].find
+      : index === state.levelIndex ? currentFound : 0;
+    const fraction = levelFound / state.levels[index].find;
+    ctx.fillStyle = 'rgba(90, 110, 150, 0.26)';
+    roundRect(ctx, sx, 628, segment, 7, 3);
+    ctx.fill();
+    if (fraction > 0) {
+      ctx.fillStyle = fraction >= 1 ? COLORS.cyan : withAlpha(COLORS.gold, 0.9);
+      roundRect(ctx, sx, 628, Math.max(3, segment * fraction), 7, 3);
+      ctx.fill();
+      tipX = sx + segment * fraction;
+    }
+  }
+  if (found > 0) {
+    ctx.fillStyle = 'rgba(255, 240, 200, 0.85)';
+    ctx.beginPath();
+    ctx.arc(Math.min(x + w, tipX), 631.5, 2.2, 0, TAU);
+    ctx.fill();
+  }
+
+  ctx.textAlign = 'left';
+  ctx.fillStyle = 'rgba(160, 178, 208, 0.75)';
+  ctx.font = `600 10px ${FONT.ui}`;
+  ctx.fillText(`PICTURE ${state.levelIndex + 1}/${count}`, x, 655);
+  ctx.textAlign = 'right';
+  ctx.fillStyle = 'rgba(140, 158, 190, 0.65)';
+  ctx.fillText(`${found}/${total} FOUND`, x + w, 655);
+  ctx.textAlign = 'left';
+}
+
+function drawStar(ctx, x, y, radius, fill, edge) {
+  ctx.save();
+  const star = gradient(ctx, x, y - radius, x, y + radius, [
+    [0, '#fff0c0'],
+    [0.55, fill],
+    [1, edge],
+  ]);
+  starPath(ctx, x, y, radius, radius * 0.44, 5, -Math.PI / 2);
+  ctx.fillStyle = star;
+  ctx.fill();
+  ctx.strokeStyle = withAlpha(fill, 0.75);
+  ctx.lineWidth = 1;
+  ctx.stroke();
+  ctx.restore();
 }
 
 function drawHintButton(ctx, state) {
@@ -469,6 +722,20 @@ function drawRoundButton(ctx, box, kind) {
     ctx.moveTo(cx + 10, cy - 4);
     ctx.lineTo(cx + 4, cy + 4);
     ctx.stroke();
+  } else if (kind === 'pause') {
+    ctx.fillStyle = 'rgba(220, 232, 255, 0.85)';
+    roundRect(ctx, cx - 6, cy - 8, 4, 16, 1.6);
+    ctx.fill();
+    roundRect(ctx, cx + 2, cy - 8, 4, 16, 1.6);
+    ctx.fill();
+  } else if (kind === 'play') {
+    ctx.fillStyle = 'rgba(220, 232, 255, 0.85)';
+    ctx.beginPath();
+    ctx.moveTo(cx - 4, cy - 8);
+    ctx.lineTo(cx + 8, cy);
+    ctx.lineTo(cx - 4, cy + 8);
+    ctx.closePath();
+    ctx.fill();
   } else {
     // Retry arrow.
     ctx.beginPath();
@@ -618,6 +885,14 @@ function drawTimeout(ctx, state) {
   ctx.fillStyle = COLORS.dim;
   ctx.font = `600 10px ${FONT.ui}`;
   ctx.fillText('SCORE', 640, card.y + 184);
+
+  ctx.font = `600 10px ${FONT.ui}`;
+  ctx.fillStyle = state.newBest ? COLORS.gold : 'rgba(140, 158, 190, 0.75)';
+  ctx.fillText(
+    `${state.newBest ? 'NEW PERSONAL BEST' : 'PERSONAL BEST'}  ${state.best.score.toLocaleString('en-US')}`,
+    640,
+    card.y + 212,
+  );
   cardButton(ctx, 'TRY AGAIN', false);
   ctx.textAlign = 'left';
 }
@@ -638,7 +913,7 @@ function drawVictory(ctx, state) {
   }
   ctx.fillStyle = 'rgba(4, 8, 17, 0.62)';
   ctx.fillRect(0, 0, 1280, 720);
-  const card = { x: 340, y: 140, w: 600, h: 440 };
+  const card = { x: 340, y: 118, w: 600, h: 480 };
   softCard(ctx, card);
   ctx.textAlign = 'center';
 
@@ -646,8 +921,8 @@ function drawVictory(ctx, state) {
     const angle = -Math.PI / 2 + (index - 4) * 0.22;
     sparkle(
       ctx,
-      640 + Math.cos(angle) * 210,
-      card.y + 50 + Math.sin(angle) * 34,
+      640 + Math.cos(angle) * 220,
+      card.y + 38 + Math.sin(angle) * 32,
       6 + (index % 3) * 2.5,
       index % 2 ? COLORS.gold : COLORS.cyan,
       0.85,
@@ -656,36 +931,128 @@ function drawVictory(ctx, state) {
 
   ctx.fillStyle = COLORS.gold;
   ctx.font = `700 10px ${FONT.ui}`;
-  ctx.fillText('ALL THREE PICTURES CLEARED', 640, card.y + 40);
+  ctx.fillText(`ALL ${state.levels.length} PICTURES CLEARED`, 640, card.y + 34);
   ctx.fillStyle = COLORS.ink;
-  ctx.font = `700 42px ${FONT.display}`;
-  ctx.fillText('QUEST COMPLETE', 640, card.y + 86);
+  ctx.font = `700 40px ${FONT.display}`;
+  ctx.fillText('QUEST COMPLETE', 640, card.y + 78);
   ctx.fillStyle = COLORS.dim;
   ctx.font = `500 12px ${FONT.ui}`;
-  ctx.fillText('Every changed detail found. The harbor, the cove and the outpost are spotless.', 640, card.y + 112);
+  ctx.fillText('Every changed detail found, from the harbor to the workshop.', 640, card.y + 102);
+
+  // Star rating, popping in one star at a time.
+  ctx.fillStyle = 'rgba(140, 158, 190, 0.7)';
+  ctx.font = `700 9px ${FONT.ui}`;
+  ctx.fillText('STAR RATING', 640, card.y + 126);
+  for (let index = 0; index < 3; index += 1) {
+    const delay = index * 0.18;
+    const pop = clamp((state.time - state.victoryAt - delay) / 0.34, 0, 1);
+    const scale = 1 + Math.sin(pop * Math.PI) * 0.34;
+    const x = 640 + (index - 1) * 58;
+    const y = card.y + 158;
+    if (pop <= 0) continue;
+    ctx.save();
+    ctx.globalAlpha = pop;
+    ctx.translate(x, y);
+    ctx.scale(scale, scale);
+    if (index < state.stars) {
+      drawStar(ctx, 0, 0, 21, COLORS.gold, COLORS.goldDeep);
+    } else {
+      starPath(ctx, 0, 0, 20, 8.8, 5, -Math.PI / 2);
+      ctx.fillStyle = 'rgba(255, 207, 107, 0.05)';
+      ctx.fill();
+      ctx.strokeStyle = 'rgba(255, 207, 107, 0.28)';
+      ctx.lineWidth = 1.2;
+      ctx.stroke();
+    }
+    ctx.restore();
+  }
 
   ctx.fillStyle = COLORS.ink;
-  ctx.font = `700 54px ${FONT.ui}`;
-  ctx.fillText(state.score.toLocaleString('en-US'), 640, card.y + 178);
+  ctx.font = `700 46px ${FONT.ui}`;
+  ctx.fillText(state.score.toLocaleString('en-US'), 640, card.y + 218);
   ctx.fillStyle = COLORS.dim;
   ctx.font = `600 10px ${FONT.ui}`;
-  ctx.fillText('FINAL SCORE', 640, card.y + 198);
+  ctx.fillText('FINAL SCORE', 640, card.y + 237);
 
-  // Per-level rows.
+  ctx.font = `600 11px ${FONT.ui}`;
+  if (state.newBest) {
+    ctx.fillStyle = COLORS.gold;
+    ctx.fillText(`NEW PERSONAL BEST  ·  ${state.best.score.toLocaleString('en-US')}`, 640, card.y + 258);
+    sparkle(ctx, 640 - 118, card.y + 254, 6, '#ffe7a8', 0.9);
+    sparkle(ctx, 640 + 118, card.y + 254, 6, '#ffe7a8', 0.9);
+  } else {
+    ctx.fillStyle = 'rgba(140, 158, 190, 0.75)';
+    ctx.fillText(`PERSONAL BEST  ${state.best.score.toLocaleString('en-US')}`, 640, card.y + 258);
+  }
+
+  ctx.strokeStyle = 'rgba(120, 140, 180, 0.2)';
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  ctx.moveTo(card.x + 56, card.y + 274);
+  ctx.lineTo(card.x + card.w - 56, card.y + 274);
+  ctx.stroke();
+
+  // Per-picture results in two columns.
   for (let index = 0; index < state.results.length; index += 1) {
     const row = state.results[index];
-    const y = card.y + 234 + index * 28;
+    const column = index < 3 ? 0 : 1;
+    const line = index % 3;
+    const left = card.x + 56 + column * 258;
+    const right = left + 232;
+    const y = card.y + 300 + line * 22;
     ctx.textAlign = 'left';
+    ctx.fillStyle = COLORS.found;
+    ctx.font = `700 10px ${FONT.ui}`;
+    ctx.fillText('✓', left, y);
     ctx.fillStyle = COLORS.dim;
-    ctx.font = `500 11px ${FONT.ui}`;
-    ctx.fillText(`${index + 1}. ${row.name}`, card.x + 120, y);
+    ctx.font = `500 10.5px ${FONT.ui}`;
+    ctx.fillText(`${index + 1}. ${row.name}`, left + 14, y);
     ctx.textAlign = 'right';
-    ctx.fillStyle = index === 2 ? COLORS.found : COLORS.ink;
-    ctx.font = `700 12px ${FONT.ui}`;
-    ctx.fillText(`${row.score.toLocaleString('en-US')} pts`, card.x + card.w - 120, y);
+    ctx.fillStyle = COLORS.ink;
+    ctx.font = `700 11px ${FONT.ui}`;
+    ctx.fillText(row.score.toLocaleString('en-US'), right, y);
   }
 
   cardButton(ctx, 'PLAY AGAIN', false);
+  ctx.textAlign = 'left';
+}
+
+function drawPause(ctx, state) {
+  ctx.fillStyle = 'rgba(4, 8, 17, 0.68)';
+  ctx.fillRect(0, 0, 1280, 720);
+  const card = { x: 424, y: 236, w: 432, h: 226 };
+  softCard(ctx, card);
+  ctx.textAlign = 'center';
+  // Pause glyph.
+  ctx.fillStyle = withAlpha(COLORS.gold, 0.16);
+  ctx.beginPath();
+  ctx.arc(640, card.y + 46, 24, 0, TAU);
+  ctx.fill();
+  ctx.strokeStyle = withAlpha(COLORS.gold, 0.55);
+  ctx.lineWidth = 1.2;
+  ctx.stroke();
+  ctx.fillStyle = COLORS.gold;
+  roundRect(ctx, 633, card.y + 35, 5, 22, 2);
+  ctx.fill();
+  roundRect(ctx, 643, card.y + 35, 5, 22, 2);
+  ctx.fill();
+
+  ctx.fillStyle = COLORS.gold;
+  ctx.font = `700 9px ${FONT.ui}`;
+  ctx.fillText('TAKE A BREATH', 640, card.y + 92);
+  ctx.fillStyle = COLORS.ink;
+  ctx.font = `700 34px ${FONT.display}`;
+  ctx.fillText('PAUSED', 640, card.y + 128);
+  ctx.fillStyle = COLORS.dim;
+  ctx.font = `500 11px ${FONT.ui}`;
+  ctx.fillText('The clock is stopped. Both pictures are waiting.', 640, card.y + 150);
+
+  ctx.fillStyle = 'rgba(170, 188, 216, 0.8)';
+  ctx.font = `600 10px ${FONT.ui}`;
+  ctx.fillText('P / ESC  resume   ·   M  sound   ·   R  restart picture', 640, card.y + 180);
+  ctx.fillStyle = COLORS.gold;
+  ctx.font = `700 10px ${FONT.ui}`;
+  ctx.fillText('CLICK ANYWHERE TO RESUME', 640, card.y + 203);
   ctx.textAlign = 'left';
 }
 

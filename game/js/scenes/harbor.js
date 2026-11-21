@@ -237,6 +237,34 @@ export function buildHarbor(random) {
     { prop: 'lamppost', op: 'color', value: '#8fe8ff', tier: 2, r: 1.1 },
   ];
 
+  // A few stars breathe and the antenna blinks, identically on both copies.
+  const ambient = (ctx, time) => {
+    for (let index = 0; index < stars.length; index += 4) {
+      const star = stars[index];
+      const twinkle = 0.5 + 0.5 * Math.sin(time * 1.8 + index);
+      ctx.globalAlpha = star.a * twinkle * (1 - star.y / 300);
+      dot(ctx, star.x, star.y, star.r + 0.4, '#f2f6ff');
+    }
+    ctx.globalAlpha = 1;
+    const antenna = props.find((prop) => prop.id === 'antenna');
+    if (antenna) {
+      const pulse = 0.35 + 0.65 * Math.max(0, Math.sin(time * 2.2));
+      ctx.fillStyle = `rgba(255, 90, 90, ${0.22 * pulse})`;
+      ctx.beginPath();
+      ctx.arc(antenna.x, antenna.y - 48, 11, 0, TAU);
+      ctx.fill();
+      dot(ctx, antenna.x, antenna.y - 48, 3.4, `rgba(255, 110, 110, ${0.6 + pulse * 0.4})`);
+    }
+    // Slow glints on the water.
+    for (let index = 0; index < 8; index += 1) {
+      const x = 20 + hash01(index * 3.3) * (W - 40);
+      const y = HORIZON + 24 + hash01(index * 5.1) * 140;
+      const glint = Math.max(0, Math.sin(time * 1.5 + index * 1.7));
+      ctx.fillStyle = `rgba(255, 226, 170, ${glint * 0.22})`;
+      ctx.fillRect(x, y, 5 + hash01(index) * 9, 1);
+    }
+  };
+
   return {
     key: 'harbor',
     name: 'Harbor Afterglow',
@@ -244,6 +272,7 @@ export function buildHarbor(random) {
     props,
     pool,
     backdrop,
+    ambient,
     drawProp: drawHarborProp,
   };
 }

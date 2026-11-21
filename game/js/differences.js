@@ -5,6 +5,7 @@
 //   hide                   it is missing from the right-hand picture
 //   show                   it is present only on the right-hand picture
 //   shift / scale          nudge or resize it on the right-hand picture
+//   rotate / count         turn it, or change how many of it are drawn
 //   open                   open the treasure chest (its specific visual state)
 // Choosing respects a minimum distance between click targets, so two changes never share the
 // same tiny corner of the picture.
@@ -85,6 +86,12 @@ export function buildVariants(scene, differences) {
           break;
         case 'scale':
           rightCopy.s = (rightCopy.s ?? 1) * difference.value;
+          break;
+        case 'rotate':
+          rightCopy.rot = (rightCopy.rot ?? 0) + difference.value;
+          break;
+        case 'count':
+          rightCopy.n = difference.value;
           break;
         default:
           break;

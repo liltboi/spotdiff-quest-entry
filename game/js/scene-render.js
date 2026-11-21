@@ -1,5 +1,6 @@
-// Painting one picture: the scene's own background and props, then the marks the player has
-// earned — found rings, the sparkle burst, the hint pulse and wrong-click ripples. The game
+// Painting one picture: the scene's own background, animated props and ambient layer, then the
+// marks the player has earned — found rings, the sparkle burst, the hint pulse and wrong-click
+// ripples. Both pictures receive the same clock, so ambient motion stays identical. The game
 // logic never draws; this module never changes state.
 
 import { TAU, hash01, radial, roundRect, sparkle, withAlpha } from './draw.js';
@@ -13,8 +14,18 @@ export function paintPicture(ctx, scene, props, picture) {
   roundRect(ctx, 0, 0, W, H, 10);
   ctx.clip();
 
-  scene.backdrop(ctx);
-  for (const prop of props) scene.drawProp(ctx, prop);
+  scene.backdrop(ctx, picture.time);
+  for (const prop of props) scene.drawProp(ctx, prop, picture.time);
+  if (scene.ambient) scene.ambient(ctx, picture.time);
+
+  // Fine film grain, identical in both pictures, ties every scene to one hand-made look.
+  for (let index = 0; index < 90; index += 1) {
+    const x = hash01(index * 4.7) * W;
+    const y = hash01(index * 9.3) * H;
+    const alpha = 0.018 + hash01(index * 2.9) * 0.032;
+    ctx.fillStyle = `rgba(255, 244, 220, ${alpha})`;
+    ctx.fillRect(x, y, 1.2, 1.2);
+  }
 
   // A soft vignette settles the artwork into its frame.
   ctx.fillStyle = radial(ctx, W / 2, H / 2, H * 0.34, W * 0.72, [
@@ -84,21 +95,36 @@ function drawFoundRing(ctx, difference, index, time) {
   ctx.textBaseline = 'middle';
   ctx.fillText(String(difference.order ?? index + 1), 0, 1);
 
-  // Burst: eight small sparks and four twinkles, fading over the first 0.8 s.
-  if (age < 0.8) {
-    const fade = 1 - age / 0.8;
-    for (let spark = 0; spark < 8; spark += 1) {
-      const angle = (spark / 8) * TAU + difference.x * 0.01;
-      const distance = 25 + age * 56;
-      const size = 3.4 * fade;
+  // Burst: a shockwave ring, fourteen sparks in two colours and four twinkles, fading over
+  // the first 0.9 s. The angles are seeded from the find, so a still frame always looks alive.
+  if (age < 0.9) {
+    const fade = 1 - age / 0.9;
+    ctx.globalAlpha = fade * 0.8;
+    ctx.strokeStyle = '#a7ffe1';
+    ctx.lineWidth = 2.4 * fade + 0.4;
+    ctx.beginPath();
+    ctx.arc(0, 0, 26 + age * 70, 0, TAU);
+    ctx.stroke();
+    for (let spark = 0; spark < 14; spark += 1) {
+      const angle = (spark / 14) * TAU + difference.x * 0.017;
+      const distance = 22 + age * (54 + (spark % 4) * 12);
+      const size = (2.4 + (spark % 3) * 1.6) * fade;
+      const curl = Math.sin(age * 8 + spark) * 4;
       ctx.globalAlpha = fade;
-      ctx.fillStyle = spark % 2 === 0 ? '#c9fff0' : '#ffd98a';
+      ctx.fillStyle = spark % 3 === 0 ? '#ffd98a' : spark % 3 === 1 ? '#c9fff0' : '#8be6ff';
       ctx.beginPath();
-      ctx.arc(Math.cos(angle) * distance, Math.sin(angle) * distance, Math.max(0.2, size), 0, TAU);
+      ctx.arc(
+        Math.cos(angle) * distance + curl,
+        Math.sin(angle) * distance + curl,
+        Math.max(0.2, size),
+        0,
+        TAU,
+      );
       ctx.fill();
     }
     ctx.globalAlpha = 1;
-    sparkle(ctx, 0, 0, 30 + age * 44, '#eafff6', fade * 0.9);
+    sparkle(ctx, 0, 0, 30 + age * 52, '#eafff6', fade * 0.95);
+    sparkle(ctx, 0, 0, 18 + age * 30, '#ffd98a', fade * 0.7);
   }
 
   // A settled twinkle keeps found marks alive without distracting.

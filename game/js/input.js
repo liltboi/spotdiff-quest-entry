@@ -1,5 +1,6 @@
 // Browser input, kept separate from the game rules: pointer presses arrive as logical canvas
-// coordinates, key presses as short action words.
+// coordinates, key presses as short action words. Keyboard play is first-class: arrows move a
+// cursor, Tab switches picture, Enter finds, P pauses.
 
 export function createInput(canvas, handlers) {
   const { toLogical, onPointer, onKey } = handlers;
@@ -15,6 +16,17 @@ export function createInput(canvas, handlers) {
       case 'KeyH': return 'hint';
       case 'KeyM': return 'sound';
       case 'KeyR': return 'retry';
+      case 'KeyP':
+      case 'Escape': return 'pause';
+      case 'Tab': return 'cycle';
+      case 'ArrowLeft':
+      case 'KeyA': return 'left';
+      case 'ArrowRight':
+      case 'KeyD': return 'right';
+      case 'ArrowUp':
+      case 'KeyW': return 'up';
+      case 'ArrowDown':
+      case 'KeyS': return 'down';
       case 'Enter':
       case 'Space': return 'confirm';
       default: return null;
